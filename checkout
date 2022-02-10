@@ -1,0 +1,144 @@
+class Order_Summary_Position_Below_PaymentGateway {
+	public function __construct() {
+		add_action( 'wfacp_after_checkout_page_found', [ $this, 'order_summary_position' ] );
+		add_action( 'wfacp_before_process_checkout_template_loader', [ $this, 'order_summary_position' ] );
+		add_filter( 'wfacp_html_fields_order_summary', [ $this, 'html_fields_order_summary' ] );
+		add_filter( 'wfacp_html_fields_order_coupon', [ $this, 'html_fields_order_coupon' ] );
+
+
+		/* Enable terms & condition by defualt checked */
+		add_action( 'wfacp_after_checkout_page_found', [ $this, 'enabled_term_condition' ] );
+
+		/* By pass terms & condition validation */
+		add_filter( 'woocommerce_checkout_posted_data', [ $this, 'remove_validation' ], 60 );
+
+		add_action( 'woocommerce_before_template_part', [ $this, 'add_custom_title' ], 50, 2 );
+		add_action( 'wfacp_internal_css', [ $this, 'enable_style_js' ] );
+
+	}
+
+	public function enable_style_js() {
+		?>
+
+        <script>
+
+            window.addEventListener('load', function () {
+                (function ($) {
+                    if ($('.wc-gzd-checkbox-placeholder-legal input[type=checkbox]').length > 0) {
+
+                        $('.wc-gzd-checkbox-placeholder-legal input[type=checkbox]').prop('checked', true);
+                    }
+                })(jQuery);
+            });
+
+
+        </script>
+		<?php
+	}
+
+
+	public function add_custom_title( $template_name, $template_path ) {
+		if ( 'checkout/terms.php' === $template_name ) {
+			$this->title_html();
+
+		}
+	}
+
+	public function title_html() {
+		?>
+        <div class="wfacp_internal_form_wrap wfacp-comm-title none">
+            <h2 class="wfacp_section_heading wfacp_section_title wfacp-normal wfacp-text-left">
+				<?php echo __( 'SUMMARY OF YOUR ORDER', 'woofunnels-aero-checkout' ) ?></h2>
+        </div>
+		<?php
+	}
+
+
+	public function order_summary_position() {
+		/* Add data in variables */
+		add_action( 'process_wfacp_html', [ $this, 'layout_order_summary_1' ], 10, 4 );
+
+		/* display order summary below payment gateway  */
+		add_action( 'woocommerce_after_template_part', [ $this, 'below_payment_sec' ], 2, 2 );
+
+		/* internal styling */
+		add_action( 'wfacp_internal_css', [ $this, 'internal_css_order_summary' ] );
+
+
+	}
+
+	public function html_fields_order_summary( $val ) {
+		WFACP_Common::remove_actions( 'process_wfacp_html', 'WFACP_template_layout9', 'layout_order_summary' );
+
+		return $val;
+	}
+
+	public function html_fields_order_coupon( $val ) {
+		WFACP_Common::remove_actions( 'process_wfacp_html', 'WFACP_template_layout9', 'layout_order_summary' );
+
+		return false;
+	}
+
+	public function layout_order_summary_1( $field, $key, $args, $value ) {
+
+		if ( 'order_summary' === $key ) {
+			WC()->session->set( 'wfacp_order_summary_' . WFACP_Common::get_id(), $args );
+		} elseif ( 'order_coupon' === $key ) {
+			WC()->session->set( 'wfacp_order_coupon_' . WFACP_Common::get_id(), $args );
+		}
+	}
+
+	public function below_payment_sec( $template_name, $template_path ) {
+		if ( 'checkout/terms.php' === $template_name ) {
+
+			$args1 = WC()->session->get( 'wfacp_order_summary_' . WFACP_Common::get_id() );
+			/**
+			 * @var $instance WFACP_template_layout9
+			 */
+			$instance = WFACP_Core()->template_loader->get_template_ins();
+
+			include WFACP_TEMPLATE_COMMON . '/order-coupon.php';
+
+			$instance->layout_order_summary( '', 'order_summary', $args1, '' );
+
+		}
+	}
+
+	public function enabled_term_condition() {
+		add_filter( 'woocommerce_terms_is_checked_default', '__return_true' );
+	}
+
+	public function remove_validation( $posted_data ) {
+
+
+		if ( isset( $posted_data['terms'] ) && ( false === $posted_data['terms'] || 0 === $posted_data['terms'] ) ) {
+			$posted_data['terms'] = true;
+
+		}
+
+		return $posted_data;
+	}
+
+
+	public function remove_terms() {
+
+		if ( class_exists( 'WFACP_Common' ) ) {
+			add_filter( 'woocommerce_checkout_show_terms', function () {
+				return false;
+			} );
+		}
+	}
+
+	public function internal_css_order_summary() {
+		echo ' <style>';
+		printf( ' body .wfacp_order_summary{padding: 0;}' );
+		printf( ' body #order_coupon_field{padding: 0;}' );
+		printf( ' body #order_coupon_field .wfacp_custom_row_wrap{text-align: left;}' );
+		echo 'body .wfacp_main_form .woocommerce-terms-and-conditions-wrapper .form-row .required{visibility: hidden;}';
+		echo ' </style>';
+	}
+
+
+}
+
+new Order_Summary_Position_Below_PaymentGateway();
